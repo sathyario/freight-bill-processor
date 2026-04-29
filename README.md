@@ -2,6 +2,10 @@
 
 An AI-powered freight bill auditing system using **FastAPI**, **LangGraph**, **PostgreSQL**, and **Neo4j**. Processes freight bills against contracts and shipments, auto-approves clean bills, flags anomalies, and pauses for human review on ambiguous cases.
 
+**Live API:** https://freight-bill-processor-733950093150.us-central1.run.app  
+**Swagger UI:** https://freight-bill-processor-733950093150.us-central1.run.app/docs  
+**GitHub:** https://github.com/sathyario/freight-bill-processor
+
 ---
 
 ## How to Run
@@ -13,7 +17,7 @@ An AI-powered freight bill auditing system using **FastAPI**, **LangGraph**, **P
 ### Start
 
 ```bash
-git clone <repo>
+git clone https://github.com/sathyario/freight-bill-processor.git
 cd freight-bill-processor
 cp .env.example .env   # edit GEMINI_API_KEY if you have one (optional)
 docker-compose up
@@ -294,12 +298,27 @@ Cloud Run  ←  Docker image in Artifact Registry
 
 **Cloud Run + stateless containers:** Solved by `PostgresSaver`. Agent state (paused interrupt) lives in Neon, not the container. Cloud Run can scale to zero and restart — resume still works because the checkpoint is in the DB.
 
+**Deployed at:** https://freight-bill-processor-733950093150.us-central1.run.app
+
 ```bash
+# Build and push image to Artifact Registry
+gcloud builds submit --tag us-central1-docker.pkg.dev/$PROJECT/freight-app/app:latest
+
+# Store secrets (no quotes — use printf or temp files on Windows)
+printf "your-neon-url" | gcloud secrets create DATABASE_URL --data-file=-
+printf "neo4j+s://your-aura-uri" | gcloud secrets create NEO4J_URI --data-file=-
+printf "your-gemini-key" | gcloud secrets create GEMINI_API_KEY --data-file=-
+
+# Grant Cloud Run access to secrets
+gcloud projects add-iam-policy-binding $PROJECT \
+  --member=serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com \
+  --role=roles/secretmanager.secretAccessor
+
 # Deploy
-gcloud run deploy freight-processor \
-  --image gcr.io/$PROJECT/freight-processor \
-  --set-secrets DATABASE_URL=freight-db-url:latest \
-  --set-secrets NEO4J_URI=neo4j-uri:latest \
-  --set-secrets GEMINI_API_KEY=gemini-key:latest \
-  --region asia-south1
+gcloud run deploy freight-bill-processor \
+  --image us-central1-docker.pkg.dev/$PROJECT/freight-app/app:latest \
+  --platform managed --region us-central1 \
+  --allow-unauthenticated --memory 1Gi --port 8000 \
+  --set-secrets="DATABASE_URL=DATABASE_URL:latest,NEO4J_URI=NEO4J_URI:latest,NEO4J_USER=NEO4J_USER:latest,NEO4J_PASSWORD=NEO4J_PASSWORD:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest" \
+  --set-env-vars="LANGCHAIN_TRACING_V2=true,LANGCHAIN_PROJECT=freight-bill-processor,LOG_LEVEL=INFO,SEED_DATA_PATH=/app/seed_data.json"
 ```
