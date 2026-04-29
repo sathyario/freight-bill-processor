@@ -458,29 +458,35 @@ Cloud Run  ←  Docker image in Artifact Registry
 
 ### Deploy commands
 
+These are the exact commands used to deploy this project.  
+**GCP project:** `freight-bill-processor` | **Project number:** `733950093150` | **Region:** `us-central1`
+
 ```bash
-# 1. Build and push image
+# 1. Build and push image to Artifact Registry
 gcloud builds submit \
-  --tag us-central1-docker.pkg.dev/$PROJECT/freight-app/app:latest
+  --tag us-central1-docker.pkg.dev/freight-bill-processor/freight-app/app:latest
 
-# 2. Store secrets (use printf or temp file — avoid Windows CMD echo which adds quotes)
-printf "postgresql://..." | gcloud secrets create DATABASE_URL --data-file=-
-printf "neo4j+s://..."    | gcloud secrets create NEO4J_URI --data-file=-
-printf "your-user"        | gcloud secrets create NEO4J_USER --data-file=-
-printf "your-password"    | gcloud secrets create NEO4J_PASSWORD --data-file=-
-printf "AIza..."          | gcloud secrets create GEMINI_API_KEY --data-file=-
-printf "lsv2_pt_..."      | gcloud secrets create LANGCHAIN_API_KEY --data-file=-
+# 2. Store secrets in Secret Manager
+#    (use printf, not echo — Windows CMD echo adds quotes around the value)
+printf "your-neon-postgres-url"  | gcloud secrets create DATABASE_URL --data-file=-
+printf "neo4j+s://your-aura-uri" | gcloud secrets create NEO4J_URI --data-file=-
+printf "your-neo4j-username"     | gcloud secrets create NEO4J_USER --data-file=-
+printf "your-neo4j-password"     | gcloud secrets create NEO4J_PASSWORD --data-file=-
+printf "your-gemini-api-key"     | gcloud secrets create GEMINI_API_KEY --data-file=-
+printf "your-langsmith-api-key"  | gcloud secrets create LANGCHAIN_API_KEY --data-file=-
 
-# 3. Grant Cloud Run service account access to secrets
-gcloud projects add-iam-policy-binding $PROJECT \
-  --member=serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com \
+# 3. Grant Cloud Run service account access to Secret Manager
+gcloud projects add-iam-policy-binding freight-bill-processor \
+  --member=serviceAccount:733950093150-compute@developer.gserviceaccount.com \
   --role=roles/secretmanager.secretAccessor
 
-# 4. Deploy
+# 4. Deploy to Cloud Run
 gcloud run deploy freight-bill-processor \
-  --image us-central1-docker.pkg.dev/$PROJECT/freight-app/app:latest \
+  --image us-central1-docker.pkg.dev/freight-bill-processor/freight-app/app:latest \
   --platform managed --region us-central1 \
   --allow-unauthenticated --memory 1Gi --port 8000 \
   --set-secrets="DATABASE_URL=DATABASE_URL:latest,NEO4J_URI=NEO4J_URI:latest,NEO4J_USER=NEO4J_USER:latest,NEO4J_PASSWORD=NEO4J_PASSWORD:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,LANGCHAIN_API_KEY=LANGCHAIN_API_KEY:latest" \
   --set-env-vars="LANGCHAIN_TRACING_V2=true,LANGCHAIN_PROJECT=freight-bill-processor,LOG_LEVEL=INFO,SEED_DATA_PATH=/app/seed_data.json"
 ```
+
+**Secrets already provisioned** (6 of 6): `DATABASE_URL`, `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`, `GEMINI_API_KEY`, `LANGCHAIN_API_KEY`
