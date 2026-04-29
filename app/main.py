@@ -2,6 +2,7 @@ import structlog
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 from app.config import settings
 from app.db.session import init_db
@@ -54,6 +55,11 @@ app.add_middleware(
 app.include_router(freight_bills_router, prefix="/freight-bills", tags=["Freight Bills"])
 app.include_router(review_router, prefix="", tags=["Review"])
 app.include_router(metrics_router, prefix="/metrics", tags=["Metrics"])
+
+
+@app.get("/", include_in_schema=False)
+async def root():
+    return RedirectResponse(url="/docs")
 
 
 @app.get("/health", tags=["Health"])
